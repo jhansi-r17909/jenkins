@@ -7,7 +7,7 @@
     <groupId>com.artisantek</groupId>
     <artifactId>java-sample-21</artifactId>
     <version>1.0.0</version>
-    <packaging>jar</packaging>
+    <packaging>war</packaging>
 
     <name>ArtisanTek Java Sample</name>
     <description>A lightweight and beautiful Java 21 web application for ArtisanTek May2025 batch</description>
