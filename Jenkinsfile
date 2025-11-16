@@ -4,7 +4,7 @@ pipeline {
     environment {
         REPO_URL   = 'https://github.com/jhansi-r17909/jenkins.git'
         PROJECT_DIR = 'javaapp-standalone'
-        DEPLOY_PATH = '/opt/deployments/myapp'   // change this to your desired path
+        DEPLOY_PATH = '/var/lib/jenkins/deployments/myapp'  
     }
 
     stages {
