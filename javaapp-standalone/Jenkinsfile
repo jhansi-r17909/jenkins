@@ -56,22 +56,19 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
-            when {
-                branch 'main'   // deploy only on main
-            }
-            steps {
-                script {
-                    sh """
-                        echo 'Deploying artifact'
-                        sudo mkdir -p ${DEPLOY_DIR}
-                        sudo cp ${PROJECT_DIR}/target/*.jar ${DEPLOY_DIR}/
-                    """
-                }
-                echo "Deployment to ${DEPLOY_DIR} completed"
-            }
+    stage('Deploy') {
+         when { branch 'main' }
+    steps {
+        script {
+            sh """
+                mkdir -p ${WORKSPACE}/deploy
+                cp ${PROJECT_DIR}/target/*.jar ${WORKSPACE}/deploy/
+            """
         }
+        echo "Deployed to: ${WORKSPACE}/deploy"
     }
+  }
+}
 
     post {
         success {
