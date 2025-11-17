@@ -17,27 +17,33 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'mvn clean package'
+                dir('javaapp-standalone') {
+                    sh 'mvn clean package'
+                }
             }
         }
 
         stage('SonarQube Scan') {
             steps {
-                withSonarQubeEnv('sonar-global') {
-                    sh """
-                        mvn sonar:sonar \
-                        -Dsonar.login=${SONAR}
-                    """
+                dir('javaapp-standalone') {
+                    withSonarQubeEnv('sonarqube') {
+                        sh """
+                            mvn sonar:sonar \
+                            -Dsonar.login=${SONAR}
+                        """
+                    }
                 }
             }
         }
 
         stage('Snyk Scan') {
             steps {
-                sh """
-                    snyk auth ${SNYK}
-                    snyk test
-                """
+                dir('javaapp-standalone') {
+                    sh """
+                        snyk auth ${SNYK}
+                        snyk test
+                    """
+                }
             }
         }
 
@@ -45,12 +51,11 @@ pipeline {
             steps {
                 sshagent(['remote-server-ssh']) {
 
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ubuntu@13.232.59.70 "mkdir -p /home/ubuntu/app"
-                    """
+                    sh 'ssh -o StrictHostKeyChecking=no ubuntu@13.232.59.70 "mkdir -p /home/ubuntu/app"'
 
                     sh """
-                        scp -o StrictHostKeyChecking=no target/*.jar ubuntu@13.232.59.70:/home/ubuntu/app/
+                        scp -o StrictHostKeyChecking=no javaapp-standalone/target/*.jar \
+                        ubuntu@13.232.59.70:/home/ubuntu/app/
                     """
                 }
             }
@@ -59,7 +64,7 @@ pipeline {
         stage('Cleanup Workspace') {
             steps {
                 echo "Cleaning workspace..."
-                sh 'rm -rf target || true'
+                sh 'rm -rf javaapp-standalone/target || true'
             }
         }
     }
