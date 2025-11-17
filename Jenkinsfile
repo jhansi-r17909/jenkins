@@ -2,57 +2,60 @@ pipeline {
     agent any
 
     environment {
-        REPO_URL   = 'https://github.com/jhansi-r17909/jenkins.git'
-        PROJECT_DIR = 'javaapp-standalone'
-        DEPLOY_PATH = '/var/lib/jenkins/deployments/myapp'  
+        SNYK_TOKEN = credentials('SNYK_TOKEN')
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                git url: "${env.REPO_URL}", branch: 'main'
+                git branch: 'main',
+                    url: 'https://github.com/jhansi-r17909/jenkins.git'
             }
         }
 
-        stage('Build') {
+        stage('Build Java Project') {
             steps {
-                dir("${env.PROJECT_DIR}") {
-                    sh 'mvn clean package'
-                }
-            }
-        }
-
-        stage('Run Tests') {
-            steps {
-                dir("${env.PROJECT_DIR}") {
-                    sh 'mvn test'
-                }
-            }
-        }
-
-        stage('Deploy Artifact') {
-            steps {
-                echo "Deploying artifact to ${env.DEPLOY_PATH}"
-
                 sh '''
-                    mkdir -p ${DEPLOY_PATH}
-                    ARTIFACT=$(ls ${PROJECT_DIR}/target/*.jar ${PROJECT_DIR}/target/*.war 2>/dev/null | head -n 1)
+                    echo "Building Java Project..."
+                    cd javavapp-standalone
+                    mvn clean install -DskipTests
+                '''
+            }
+        }
 
-                    if [ -z "$ARTIFACT" ]; then
-                        echo "No artifact found inside ${PROJECT_DIR}/target/"
-                        exit 1
-                    fi
+        stage('Install Snyk CLI') {
+            steps {
+                sh 'curl -sL https://snyk.io/install.sh | sh'
+            }
+        }
 
-                    cp "$ARTIFACT" ${DEPLOY_PATH}/
-                    echo "Artifact copied to ${DEPLOY_PATH}"
+        stage('Snyk Auth') {
+            steps {
+                sh 'snyk auth $SNYK_TOKEN'
+            }
+        }
+
+        stage('Snyk Scan') {
+            steps {
+                sh '''
+                    mkdir -p snyk-reports
+
+                    cd javavapp-standalone
+
+                    snyk test --all-projects \
+                        --json-file-output=../snyk-reports/snyk.json
+
+                    snyk test --all-projects \
+                        --sarif-file-output=../snyk-reports/snyk.sarif
                 '''
             }
         }
     }
 
     post {
-        success { echo 'Pipeline completed successfully.' }
-        failure { echo 'Pipeline failed — check logs.' }
+        always {
+            archiveArtifacts artifacts: 'snyk-reports/*', fingerprint: true
+        }
     }
 }
