@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         SONAR = credentials('sonarqube-token')
-        SNYK = credentials('SYNK_TOKEN')
+        SNYK  = credentials('SYNK_TOKEN')
     }
 
     stages {
@@ -39,14 +39,10 @@ pipeline {
         stage('Snyk Scan') {
             steps {
                 dir('javaapp-standalone') {
-                    sh '''
-                        // snyk auth ${SNYK}
-                        // snyk test
-                        sh '''
-                          snyk auth $SNYK
+                    sh """
+                        snyk auth ${SNYK}
                         snyk test || true
-
-                    '''
+                    """
                 }
             }
         }
@@ -55,8 +51,10 @@ pipeline {
             steps {
                 sshagent(['remote-server-ssh']) {
 
+                    // Ensure directory exists
                     sh 'ssh -o StrictHostKeyChecking=no ubuntu@13.232.59.70 "mkdir -p /home/ubuntu/app"'
 
+                    // Copy JAR to remote server
                     sh """
                         scp -o StrictHostKeyChecking=no javaapp-standalone/target/*.jar \
                         ubuntu@13.232.59.70:/home/ubuntu/app/
