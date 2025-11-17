@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-        // Must exactly match credential ID in Jenkins
-        SNYK_TOKEN = credentials('synktoken')
+        SNYK_TOKEN = credentials('SNYK_TOKEN')
     }
 
     stages {
@@ -46,17 +45,17 @@ pipeline {
                 '''
             }
         }
-    }
+    } // end stages
 
     post {
         always {
-            node {   // FIX: ensures workspace exists to avoid FilePath errors
-                echo "Archiving Snyk reports..."
+            script {
+                echo "Checking and archiving Snyk reports..."
 
                 if (fileExists('snyk-reports')) {
                     archiveArtifacts artifacts: 'snyk-reports/*', fingerprint: true
                 } else {
-                    echo "⚠️ No snyk-reports folder found!"
+                    echo "⚠️ snyk-reports folder NOT found!"
                 }
             }
         }
