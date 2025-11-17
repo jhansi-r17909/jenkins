@@ -1,0 +1,131 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven'
+    }
+
+    environment {
+        PROJECT_DIR = "javaapp-standalone"
+        DEPLOY_DIR = "/opt/myapp"
+    }
+
+    stages {
+
+        /* -------------------------------------------------------
+                           CHECKOUT (Multibranch)
+        ------------------------------------------------------- */
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "Building Branch: ${env.BRANCH_NAME}"
+            }
+        }
+
+        /* -------------------------------------------------------
+                              BUILD (dev + main)
+        ------------------------------------------------------- */
+        stage('Build') {
+            when {
+                anyOf {
+                    branch 'dev'
+                    branch 'main'
+                }
+            }
+            steps {
+                dir("${PROJECT_DIR}") {
+                    sh "mvn clean package"
+                }
+            }
+        }
+
+        /* -------------------------------------------------------
+                        SONARQUBE ANALYSIS (dev + main)
+        ------------------------------------------------------- */
+        stage('SonarQube Analysis') {
+            when {
+                anyOf {
+                    branch 'dev'
+                    branch 'main'
+                }
+            }
+            steps {
+                withSonarQubeEnv('sonarqube') {
+                    dir("${PROJECT_DIR}") {
+                        sh "mvn sonar:sonar"
+                    }
+                }
+            }
+        }
+
+        /* -------------------------------------------------------
+                        TEST SONAR HEALTH (dev + main)
+        ------------------------------------------------------- */
+        stage('Test Sonar Connection') {
+            when {
+                anyOf {
+                    branch 'dev'
+                    branch 'main'
+                }
+            }
+            steps {
+                sh 'curl -v http://localhost:9000/api/system/health'
+            }
+        }
+
+        /* -------------------------------------------------------
+                        SONAR QUALITY GATE (dev + main)
+        ------------------------------------------------------- */
+        stage('Quality Gate') {
+            when {
+                anyOf {
+                    branch 'dev'
+                    branch 'main'
+                }
+            }
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    script {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline failed due to quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
+            }
+        }
+
+        /* -------------------------------------------------------
+                           DEPLOY ONLY MAIN BRANCH
+        ------------------------------------------------------- */
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo "Deploying artifact locally on same Jenkins server..."
+
+                script {
+                    sh """
+                        # Create target directory if missing
+                        mkdir -p ${DEPLOY_DIR}
+
+                        # Copy the generated JAR to deployment folder
+                        cp ${PROJECT_DIR}/target/*.jar ${DEPLOY_DIR}/
+
+                        echo "Deployment successful! Artifact copied to: ${DEPLOY_DIR}"
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline SUCCESS for branch: ${env.BRANCH_NAME}"
+        }
+        failure {
+            echo "Pipeline FAILED for branch: ${env.BRANCH_NAME}"
+        }
+    }
+}
