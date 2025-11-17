@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        SNYK_TOKEN = credentials('synktoken')
+        SNYK_TOKEN = credentials('SNYK_TOKEN')
     }
 
     stages {
@@ -22,7 +22,7 @@ pipeline {
             }
         }
 
-        stage('Install Snyk') {
+        stage('Install Snyk CLI') {
             steps {
                 sh 'curl -sL https://snyk.io/install.sh | sh'
             }
@@ -34,30 +34,30 @@ pipeline {
             }
         }
 
-        stage('Run Snyk Security Scan') {
+        stage('Run Snyk Scan') {
             steps {
                 sh '''
                     mkdir -p snyk-reports
                     cd javavapp-standalone
-
+                    
                     snyk test --json-file-output=../snyk-reports/snyk.json
                     snyk test --sarif-file-output=../snyk-reports/snyk.sarif
                 '''
             }
         }
-    } // end stages
+    }
 
     post {
         always {
-            script {
-                echo "Checking and archiving Snyk reports..."
+            sh '''
+                if [ -d "snyk-reports" ]; then
+                    echo "Archiving reports..."
+                else
+                    echo "No snyk-reports folder found."
+                fi
+            '''
 
-                if (fileExists('snyk-reports')) {
-                    archiveArtifacts artifacts: 'snyk-reports/*', fingerprint: true
-                } else {
-                    echo "⚠️ snyk-reports folder NOT found!"
-                }
-            }
+            archiveArtifacts artifacts: 'snyk-reports/*', allowEmptyArchive: true
         }
     }
 }
