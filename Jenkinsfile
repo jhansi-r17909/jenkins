@@ -2,62 +2,71 @@ pipeline {
     agent any
 
     environment {
-        SNYK_TOKEN = credentials('SNYK_TOKEN')
+        SONAR = credentials('sonarqube-token')
+        SNYK = credentials('SYNK_TOKEN')
     }
 
     stages {
 
-        stage('Checkout Source') {
+        stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/jhansi-r17909/jenkins.git'
+                git branch: 'main',
+                    url: 'https://github.com/jhansi-r17909/jenkins.git'
             }
         }
 
-        stage('Build Java Project') {
+        stage('Build') {
             steps {
-                sh '''
-                    cd javavapp-standalone
-                    mvn clean install -DskipTests
-                '''
+                sh 'mvn clean package'
             }
         }
 
-        stage('Install Snyk CLI') {
+        stage('SonarQube Scan') {
             steps {
-                sh 'curl -sL https://snyk.io/install.sh | sh'
+                withSonarQubeEnv('sonar-global') {
+                    sh """
+                        mvn sonar:sonar \
+                        -Dsonar.login=${SONAR}
+                    """
+                }
             }
         }
 
-        stage('Authenticate Snyk') {
+        stage('Snyk Scan') {
             steps {
-                sh 'snyk auth $SNYK_TOKEN'
+                sh """
+                    snyk auth ${SNYK}
+                    snyk test
+                """
             }
         }
 
-        stage('Run Snyk Scan') {
+        stage('Deploy to Server 13.232.59.70') {
             steps {
-                sh '''
-                    mkdir -p snyk-reports
-                    cd javavapp-standalone
-                    
-                    snyk test --json-file-output=../snyk-reports/snyk.json
-                    snyk test --sarif-file-output=../snyk-reports/snyk.sarif
-                '''
+                sshagent(['remote-server-ssh']) {
+
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ubuntu@13.232.59.70 "mkdir -p /home/ubuntu/app"
+                    """
+
+                    sh """
+                        scp -o StrictHostKeyChecking=no target/*.jar ubuntu@13.232.59.70:/home/ubuntu/app/
+                    """
+                }
+            }
+        }
+
+        stage('Cleanup Workspace') {
+            steps {
+                echo "Cleaning workspace..."
+                sh 'rm -rf target || true'
             }
         }
     }
 
     post {
         always {
-            sh '''
-                if [ -d "snyk-reports" ]; then
-                    echo "Archiving reports..."
-                else
-                    echo "No snyk-reports folder found."
-                fi
-            '''
-
-            archiveArtifacts artifacts: 'snyk-reports/*', allowEmptyArchive: true
+            echo "Pipeline completed."
         }
     }
 }
