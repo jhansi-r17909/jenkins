@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        SNYK_TOKEN = credentials('SNYK_TOKEN')
+        SNYK_TOKEN = credentials('synktoken')
     }
 
     stages {
