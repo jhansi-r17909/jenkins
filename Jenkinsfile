@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        SNYK_TOKEN = credentials('synktoken')
+        SNYK_TOKEN = credentials('SNYK_TOKEN')
     }
 
     stages {
@@ -39,15 +39,14 @@ pipeline {
         stage('Snyk Scan') {
             steps {
                 sh '''
+                    echo "Running Snyk Scan..."
                     mkdir -p snyk-reports
 
                     cd javavapp-standalone
 
-                    snyk test --all-projects \
-                        --json-file-output=../snyk-reports/snyk.json
+                    snyk test --json-file-output=../snyk-reports/snyk.json
 
-                    snyk test --all-projects \
-                        --sarif-file-output=../snyk-reports/snyk.sarif
+                    snyk test --sarif-file-output=../snyk-reports/snyk.sarif
                 '''
             }
         }
@@ -55,7 +54,14 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: 'snyk-reports/*', fingerprint: true
+            echo "Archiving Snyk reports..."
+            script {
+                if (fileExists('snyk-reports')) {
+                    archiveArtifacts artifacts: 'snyk-reports/*', fingerprint: true
+                } else {
+                    echo "No report folder found!"
+                }
+            }
         }
     }
 }
