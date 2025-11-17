@@ -39,10 +39,10 @@ pipeline {
         stage('Snyk Scan') {
             steps {
                 dir('javaapp-standalone') {
-                    sh """
+                    sh '''
                         snyk auth ${SNYK}
                         snyk test
-                    """
+                    '''
                 }
             }
         }
