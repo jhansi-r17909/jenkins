@@ -2,50 +2,46 @@ pipeline {
     agent any
 
     environment {
-        SNYK_TOKEN = credentials('SNYK_TOKEN')
+        // Must exactly match credential ID in Jenkins
+        SNYK_TOKEN = credentials('synktoken')
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Source') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/jhansi-r17909/jenkins.git'
+                git branch: 'main', url: 'https://github.com/jhansi-r17909/jenkins.git'
             }
         }
 
         stage('Build Java Project') {
             steps {
                 sh '''
-                    echo "Building Java Project..."
                     cd javavapp-standalone
                     mvn clean install -DskipTests
                 '''
             }
         }
 
-        stage('Install Snyk CLI') {
+        stage('Install Snyk') {
             steps {
                 sh 'curl -sL https://snyk.io/install.sh | sh'
             }
         }
 
-        stage('Snyk Auth') {
+        stage('Authenticate Snyk') {
             steps {
                 sh 'snyk auth $SNYK_TOKEN'
             }
         }
 
-        stage('Snyk Scan') {
+        stage('Run Snyk Security Scan') {
             steps {
                 sh '''
-                    echo "Running Snyk Scan..."
                     mkdir -p snyk-reports
-
                     cd javavapp-standalone
 
                     snyk test --json-file-output=../snyk-reports/snyk.json
-
                     snyk test --sarif-file-output=../snyk-reports/snyk.sarif
                 '''
             }
@@ -54,12 +50,13 @@ pipeline {
 
     post {
         always {
-            echo "Archiving Snyk reports..."
-            script {
+            node {   // FIX: ensures workspace exists to avoid FilePath errors
+                echo "Archiving Snyk reports..."
+
                 if (fileExists('snyk-reports')) {
                     archiveArtifacts artifacts: 'snyk-reports/*', fingerprint: true
                 } else {
-                    echo "No report folder found!"
+                    echo "⚠️ No snyk-reports folder found!"
                 }
             }
         }
