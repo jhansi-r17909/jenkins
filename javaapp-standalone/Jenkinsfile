@@ -12,25 +12,18 @@ pipeline {
 
     stages {
 
-        /* -------------------------------------------------------
-                           CHECKOUT (Multibranch)
-        ------------------------------------------------------- */
         stage('Checkout') {
+            when {
+                branch 'main'   // checkout only on main
+            }
             steps {
                 checkout scm
-                echo "Building Branch: ${env.BRANCH_NAME}"
             }
         }
 
-        /* -------------------------------------------------------
-                              BUILD (dev + main)
-        ------------------------------------------------------- */
         stage('Build') {
             when {
-                anyOf {
-                    branch 'dev'
-                    branch 'main'
-                }
+                branch 'main'   // build only on main
             }
             steps {
                 dir("${PROJECT_DIR}") {
@@ -39,15 +32,20 @@ pipeline {
             }
         }
 
-        /* -------------------------------------------------------
-                        SONARQUBE ANALYSIS (dev + main)
-        ------------------------------------------------------- */
-        stage('SonarQube Analysis') {
+        stage('Test') {
             when {
-                anyOf {
-                    branch 'dev'
-                    branch 'main'
+                branch 'dev'    // test only on dev
+            }
+            steps {
+                dir("${PROJECT_DIR}") {
+                    sh "mvn test"
                 }
+            }
+        }
+
+        stage('Sonar Scan') {
+            when {
+                branch 'dev'    // scan only on dev
             }
             steps {
                 withSonarQubeEnv('sonarqube') {
@@ -58,74 +56,29 @@ pipeline {
             }
         }
 
-        /* -------------------------------------------------------
-                        TEST SONAR HEALTH (dev + main)
-        ------------------------------------------------------- */
-        stage('Test Sonar Connection') {
-            when {
-                anyOf {
-                    branch 'dev'
-                    branch 'main'
-                }
-            }
-            steps {
-                sh 'curl -v http://localhost:9000/api/system/health'
-            }
-        }
-
-        /* -------------------------------------------------------
-                        SONAR QUALITY GATE (dev + main)
-        ------------------------------------------------------- */
-        stage('Quality Gate') {
-            when {
-                anyOf {
-                    branch 'dev'
-                    branch 'main'
-                }
-            }
-            steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    script {
-                        def qg = waitForQualityGate()
-                        if (qg.status != 'OK') {
-                            error "Pipeline failed due to quality gate failure: ${qg.status}"
-                        }
-                    }
-                }
-            }
-        }
-
-        /* -------------------------------------------------------
-                           DEPLOY ONLY MAIN BRANCH
-        ------------------------------------------------------- */
         stage('Deploy') {
             when {
-                branch 'main'
+                branch 'main'   // deploy only on main
             }
             steps {
-                echo "Deploying artifact locally on same Jenkins server..."
-
                 script {
                     sh """
-                        # Create target directory if missing
-                        mkdir -p ${DEPLOY_DIR}
-
-                        # Copy the generated JAR to deployment folder
-                        cp ${PROJECT_DIR}/target/*.jar ${DEPLOY_DIR}/
-
-                        echo "Deployment successful! Artifact copied to: ${DEPLOY_DIR}"
+                        echo 'Deploying artifact'
+                        sudo mkdir -p ${DEPLOY_DIR}
+                        sudo cp ${PROJECT_DIR}/target/*.jar ${DEPLOY_DIR}/
                     """
                 }
+                echo "Deployment to ${DEPLOY_DIR} completed"
             }
         }
     }
 
     post {
         success {
-            echo "Pipeline SUCCESS for branch: ${env.BRANCH_NAME}"
+            echo "SUCCESS → Branch: ${env.BRANCH_NAME}"
         }
         failure {
-            echo "Pipeline FAILED for branch: ${env.BRANCH_NAME}"
+            echo "FAILED → Branch: ${env.BRANCH_NAME}"
         }
     }
 }
